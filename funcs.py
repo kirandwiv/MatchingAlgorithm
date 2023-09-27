@@ -16,10 +16,10 @@ def mdf_np(n, k = 3):
     n: number of students/schools
     k: depth of student preferences 
     '''
-    x = pd.DataFrame(np.random.randint(0, n, (int(n*1.2),k)))
+    x = pd.DataFrame(np.random.randint(0, n, (int(n*1.5),k)))
     x = x[~(x.apply(lambda row: len(row) != len(set(row)), axis=1))]
     if len(x)<n:
-        return "Oops"
+        return mdf_np(n, k)
     else:
         x = x.iloc[:n].reset_index(drop=True)
         x['student_id'] = x.index
@@ -27,7 +27,10 @@ def mdf_np(n, k = 3):
         #x['N'] = 0
         x['k'] = 0
         x['matched'] = False
-        x[['rank1', 'rank2', 'rank3']] = np.random.uniform(size=(n,3))
+        #x[['rank1', 'rank2', 'rank3']] = np.random.uniform(size=(n,3)) We need to change this so that it applies to all k
+        for i in np.arange(k):
+            var = 'rank' + str(i+1)
+            x[var] = np.random.uniform(size=(n,1))
         x['underdemanded'] = True
     return x
 
@@ -50,7 +53,9 @@ def mdf_yp(n, k = 3):
         #x['N'] = 0
         x['k'] = 0
         x['matched'] = False
-        x[['rank1', 'rank2', 'rank3']] = np.random.uniform(size=(n,3))
+        for i in np.arange(k):
+            var = 'rank' + str(i+1)
+            x[var] = np.random.uniform(size=(n,1))
         x['underdemanded'] = True
     return x
 
@@ -67,11 +72,11 @@ def find_matches_3(sp):
     x = sp.sort_values(['rank1'], ascending = False).drop_duplicates(subset = 0)
     return x[[0,'student_id', 'k']] 
 
-def create_mask(sp3, sp):
+def create_mask(sp3, sp, k=3):
     '''
     This function takes a dataframe of matches and a dataframe of student preferences and returns a mask of students who have not been assigned to a school.
     '''
-    mask = ~(np.logical_or(sp['student_id'].isin(sp3['student_id']), sp['applications'] == 3)) ## creates a mask of all students who have not been assigned to a school. 
+    mask = ~(np.logical_or(sp['student_id'].isin(sp3['student_id']), sp['applications'] == k)) ## creates a mask of all students who have not been assigned to a school. 
     return mask ## The mask gives all values that should be shifted over.
 
 def shift(sp, mask, k = 3):
@@ -95,7 +100,7 @@ def find_k(x):
 
 ## Gale-Shapley Algorithm
 
-def run_gale_shapley(sp):
+def run_gale_shapley(sp, k = 3):
     '''Runs the Gale-Shapley Algorithm for a particular dataframe.
     ______
     sp: dataframe of student preferences and school scores over those students.    
@@ -103,26 +108,32 @@ def run_gale_shapley(sp):
     r_apps = 0
     i=0
     mask = [1]
-    while r_apps < 3 and sum(mask) > 0: ## note that there are two ways to end the cycle. 1 all unmatched students have applied to 3 schools. 2. There are no unmatched students.
+    while r_apps < k and sum(mask) > 0: ## note that there are two ways to end the cycle. 1 all unmatched students have applied to 3 schools. 2. There are no unmatched students.
         ## Step 1: Find k
         sp = find_k(sp)
-        sp['underdemanded'] = np.where(sp['k']>1, False, sp['underdemanded'])
+        #sp['underdemanded'] = np.where(sp['k']>1, False, sp['underdemanded'])
 
         ## Step 2: Find matches
         matches = find_matches_3(sp) ## finds first round of matches.
 
         ## Step 3: Create mask and apply to matched column
-        mask = create_mask(matches, sp) ## Creates a mask of students who have not been assigned to a school.
+        mask = create_mask(matches, sp, k) ## Creates a mask of students who have not been assigned to a school.
         sp.loc[:,'matched'] = mask
-        
-        ## Step 4: Shift Values Over for unmatched
-        sp = shift(sp, mask)
 
-        ## Step 5: Update N, to reflect total number of matches for each school. 
+        ## Step 4: Update the underdemanded column
+        condition = np.logical_or(sp['k'] > 1, sp['underdemanded'] == False)
+        sp['underdemanded'] = np.where(np.logical_and(condition,sp['matched'] == False), False, sp['underdemanded'])
+        sp['underdemanded'] = np.where(sp['matched'] == True, True, sp['underdemanded'])
+
+
+        ## Step 5: Shift Values Over for unmatched
+        sp = shift(sp, mask, k)
+
+        ## Step 6: Update N, to reflect total number of matches for each school. 
         #sp['N'] += matches.set_index(0)['k'].reindex(sp[0], fill_value=0).reset_index(drop=True)
 
-        ## Step 6: Remove all rejects who have applied to three schools:
-        sp = sp[sp['applications'] < 3] # If you've been rejected from three schools, you're out. We also don't want you to stay in the dataset. 
+        ## Step 7: Remove all rejects who have applied to k schools:
+        sp = sp[sp['applications'] < k] # If you've been rejected from three schools, you're out. We also don't want you to stay in the dataset. 
         sp.reset_index(drop=True, inplace=True) # Reset the index
         i+=1
     return sp, i
@@ -180,7 +191,7 @@ def remove_ud(sp_f, sp):
     return sp_new
 
 # EADAM Algorithm:
-def EADAM(sp):
+def EADAM(sp, k = 3):
     '''
     This function runs the EADAM algorithm.
     ______
@@ -191,7 +202,7 @@ def EADAM(sp):
     iter_list = [] ## initialize list to hold the number of iterations in each GS run.
     undermatched_matches = [] ## initialize list to hold the number of undermatched students in each round
     while change == True:
-        sp_f, i = run_gale_shapley(sp)
+        sp_f, i = run_gale_shapley(sp, k)
         if j == 0:
             gs_result = sp_f
         undermatched_matches.append(sp_f[sp_f['underdemanded'] == True]) ## save the deleted undermatched results.
