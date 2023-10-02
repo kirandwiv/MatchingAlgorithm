@@ -17,6 +17,10 @@ def mdf_yp_unpack(item):
     ''' Unpacks the tuple of arguments for the mdf_yp function. '''
     return mdf_yp(*item)
 
+def EADAM_unpack(item):
+    ''' Unpacks the tuple of arguments for the EADAM function. '''
+    return EADAM(*item)
+
 ## Simulations 
 
 def simulate(nsims, n, k):
@@ -31,12 +35,13 @@ def simulate(nsims, n, k):
     '''
     ### Create a list of preference dataframes. One dataframe per simulation. 
     input_ls = [(n,k)]*int(nsims)
-    par = pebble.ProcessPool(8).map(mdf_np_unpack, input_ls) # parallelize the creation of the preference dataframes
+    par = pebble.ProcessPool(10).map(mdf_np_unpack, input_ls) # parallelize the creation of the preference dataframes
     dfs_list = list(par.result()) # creates a list of df preferences. 
+    dfs_list = [(item, k) for item in dfs_list]
 
     ### Run EADAM on each preference dataframe.
 
-    par2 = pebble.ProcessPool(8).map(EADAM, dfs_list) # parallelize the running of EADAM
+    par2 = pebble.ProcessPool(8).map(EADAM_unpack, dfs_list) # parallelize the running of EADAM
     results = list(par2.result()) # creates a list of results.
     ## Note that the outputs from EADAM are:
     # 1. sp_f, 
