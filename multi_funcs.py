@@ -71,3 +71,15 @@ def make_df(n, k, differences, percent_diff, save = False):
     if save == True:
         df.to_csv(f'data/simulations/n_{n}_k_{k}.csv') ## if wanted saved, saves with parameters in name.
     return df
+
+def concat(list_of_files):
+    '''
+    Takes a list of files and concatenates them into a single dataframe
+    '''
+    li = []
+    for filename in list_of_files:
+        df = pd.read_csv('data/simulations/' + filename, index_col=None, header=0)
+        li.append(df)
+
+    frame = pd.concat(li, axis=0, ignore_index=True)
+    return frame
