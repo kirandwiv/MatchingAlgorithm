@@ -41,7 +41,7 @@ def simulate(nsims, n, k):
 
     ### Run EADAM on each preference dataframe.
 
-    par2 = pebble.ProcessPool(8).map(EADAM_unpack, dfs_list) # parallelize the running of EADAM
+    par2 = pebble.ProcessPool(36).map(EADAM_unpack, dfs_list) # parallelize the running of EADAM
     results = list(par2.result()) # creates a list of results.
     ## Note that the outputs from EADAM are:
     # 1. sp_f, 
