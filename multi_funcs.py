@@ -6,6 +6,7 @@ from funcs import *
 import multiprocessing
 import pebble
 import json  
+import ipywidgets as widgets
 from concurrent.futures import ThreadPoolExecutor  
 
 ## Unpackers (these just unpack arguments for pre-existing functions so that they can be used with par.pool.map)
@@ -21,6 +22,21 @@ def EADAM_unpack(item):
     ''' Unpacks the tuple of arguments for the EADAM function. '''
     return EADAM(*item)
 
+
+### WANT TO HAVE TO DIVIDE UP TASKS ONLY ONCE. 
+
+def s_simulate(item):
+    n, k = item
+    df = mdf_np(n, k)
+    result = EADAM(df, k)
+    return result
+
+def f_simulate(nsims, n, k):
+    input_ls = [(n,k)]*int(nsims)
+    par = pebble.ProcessPool(multiprocessing.cpu_count()).map(s_simulate, input_ls) # parallelize
+    results = list(par.result()) # creates a list of results.
+    return results    
+
 ## Simulations 
 
 def simulate(nsims, n, k):
@@ -35,13 +51,13 @@ def simulate(nsims, n, k):
     '''
     ### Create a list of preference dataframes. One dataframe per simulation. 
     input_ls = [(n,k)]*int(nsims)
-    par = pebble.ProcessPool(10).map(mdf_np_unpack, input_ls) # parallelize the creation of the preference dataframes
+    par = pebble.ProcessPool(multiprocessing.cpu_count()).map(mdf_np_unpack, input_ls) # parallelize the creation of the preference dataframes
     dfs_list = list(par.result()) # creates a list of df preferences. 
     dfs_list = [(item, k) for item in dfs_list]
 
     ### Run EADAM on each preference dataframe.
 
-    par2 = pebble.ProcessPool(36).map(EADAM_unpack, dfs_list) # parallelize the running of EADAM
+    par2 = pebble.ProcessPool(64).map(EADAM_unpack, dfs_list) # parallelize the running of EADAM
     results = list(par2.result()) # creates a list of results.
     ## Note that the outputs from EADAM are:
     # 1. sp_f, 
