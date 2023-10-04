@@ -28,13 +28,14 @@ def EADAM_unpack(item):
 def s_simulate(item):
     n, k = item
     df = mdf_np(n, k)
+    df1 = df.copy()
     result = EADAM(df, k)
-    return result
+    return df1, result
 
 def f_simulate(nsims, n, k):
     input_ls = [(n,k)]*int(nsims)
-    par = pebble.ProcessPool(multiprocessing.cpu_count()).map(s_simulate, input_ls) # parallelize
-    results = list(par.result()) # creates a list of results.
+    pool = multiprocessing.Pool(multiprocessing.cpu_count())
+    results = pool.map(s_simulate, input_ls) # parallelize
     return results    
 
 ## Simulations 
