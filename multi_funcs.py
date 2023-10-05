@@ -7,7 +7,8 @@ import multiprocessing
 import pebble
 import json  
 import ipywidgets as widgets
-from concurrent.futures import ThreadPoolExecutor  
+from concurrent.futures import ThreadPoolExecutor
+from tarjan_alg import *  
 
 ## Unpackers (these just unpack arguments for pre-existing functions so that they can be used with par.pool.map)
 def mdf_np_unpack(item):
@@ -32,11 +33,29 @@ def s_simulate(item):
     result = EADAM(df, k)
     return df1, result
 
+
 def f_simulate(nsims, n, k):
     input_ls = [(n,k)]*int(nsims)
     pool = multiprocessing.Pool(multiprocessing.cpu_count())
     results = pool.map(s_simulate, input_ls) # parallelize
     return results    
+
+def gs_simulate(item):
+    n, k = item
+    df = mdf_np(n, k)
+    preferences = df.copy()
+    matches, _ = run_gale_shapley(df, k)
+    _,n, cycles = find_cycles(preferences, matches, k)
+    n_in_cycles = 0
+    for item in cycles:
+        n_in_cycles += len(item)
+    return n, n_in_cycles, len(matches), cycles
+
+def gs_f_simulate(nsims, n, k):
+    input_ls = [(n,k)]*int(nsims)
+    pool = multiprocessing.Pool(multiprocessing.cpu_count())
+    results = pool.map(gs_simulate, input_ls) # parallelize
+    return results
 
 ## Simulations 
 
@@ -89,14 +108,66 @@ def make_df(n, k, differences, percent_diff, save = False):
         df.to_csv(f'data/simulations/n_{n}_k_{k}.csv') ## if wanted saved, saves with parameters in name.
     return df
 
-def concat(list_of_files):
+def concat(list_of_files, path):
     '''
     Takes a list of files and concatenates them into a single dataframe
     '''
     li = []
     for filename in list_of_files:
-        df = pd.read_csv('data/simulations/' + filename, index_col=None, header=0)
+        df = pd.read_csv(path + filename, index_col=None, header=0)
         li.append(df)
 
     frame = pd.concat(li, axis=0, ignore_index=True)
     return frame
+
+def find_cycles(preferences, matches, k):
+    '''
+    Function that takes as an input the results of a simulation and returns the number
+    of cycles in the GS result.
+    _______
+    Inputs:
+    preference: the initial preference dataframe
+    matches: the GS matches dataframe
+    '''    
+    ## Step 1: drop all unmatched students from the preference dataframe.
+    preferences = preferences[preferences['student_id'].isin(matches['student_id'])]
+    preferences.reset_index(inplace = True, drop = True) 
+    
+    ## Step 2: Remove students who got preferred choice
+    preferences['rejections'] = matches.applications
+    relevant = preferences[preferences['rejections'] != 0] ## drop all who were never rejected. They will necessarily not point to anyone else. 
+    
+    ## Step 3: For others, keep only preferences above match. 
+    for i in range(1,k):
+        relevant.iloc[:, i] = np.where(relevant['rejections']<i+1, -100, relevant.iloc[:, i])
+    relevant.set_index('student_id', inplace = True)
+    pointing = pd.DataFrame(relevant.iloc[:, :k].stack(level = 0)).reset_index()
+    pointing = pointing[pointing[0] != -100]
+    
+    ## Step 4: Prepare for Tarjan's Algorithm
+    to_merge = matches.loc[:,[0, 'student_id']]
+    pointing = pointing.merge(to_merge, on = 0, how = 'left')
+    normalizer = pd.DataFrame(pd.concat([pointing['student_id_x'], pointing['student_id_y']], axis = 0).unique())
+    normalizer['new_id'] = normalizer.index
+    pointing = pointing.merge(normalizer, left_on = 'student_id_x', right_on = 0, how = 'left')
+    pointing = pointing.merge(normalizer, left_on = 'student_id_y', right_on = 0, how = 'left')
+    pairs = pointing[['new_id_x', 'new_id_y']]
+    
+    ## Step 5: Run Tarjan's Algorithm
+    g = Graph(len(normalizer))
+    for i in range(len(pairs)):
+        g.addEdge(pairs.iloc[i, 0], pairs.iloc[i, 1])
+    g.SCC()
+    return pairs, g.Cycle, g.cycles
+
+def make_df_cycles(n, k, results, save = False):
+    n_cycles = [item[0] for item in results]
+    n_agents_in_cycles = [item[1] for item in results]
+    n_matches = [item[2] for item in results]
+    percent_in_cycles = [item[1]/item[2] for item in results]
+    df = pd.DataFrame({'n': [n]*len(n_cycles), 'k': [k]*len(n_cycles),
+                   'n_cycles': n_cycles, 'n_agents_in_cycles': n_agents_in_cycles,
+                   'n_matches': n_matches, 'percent_in_cycles': percent_in_cycles})
+    if save == True:
+        df.to_csv(f'data/simulations/cycles/n_{n}_k_{k}_cycles.csv')
+    return df

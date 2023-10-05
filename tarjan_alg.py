@@ -74,14 +74,14 @@ class Graph:
 			list1 = []
 			while w != u:
 				w = st.pop()
-				print(w, end=" ")
+				#print(w, end=" ")
 				j+=1
 				list1.append(w)
 				stackMember[w] = False
 			if j > 1:
 				self.Cycle+=1
 				self.cycles.append(list1)
-			print()
+			#print()
 
 	# The function to do DFS traversal.
 	# It uses recursive SCCUtil()
