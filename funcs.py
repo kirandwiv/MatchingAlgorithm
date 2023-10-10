@@ -8,7 +8,7 @@ pd.options.mode.chained_assignment = None  # default='warn'
 ParallelPandas.initialize(n_cpu=16, split_factor=4, disable_pr_bar=True)
 
 ## Functions for generating data
-def mdf_np(n, k = 3):
+def mdf_np(n, k = 3, c=10):
     '''
     This function generates a dataframe of student preferences and school scores over those students.
     This function does this without parallelization. 
@@ -16,7 +16,7 @@ def mdf_np(n, k = 3):
     n: number of students/schools
     k: depth of student preferences 
     '''
-    x = pd.DataFrame(np.random.randint(0, n, (int(n*1.5),k)))
+    x = pd.DataFrame(np.random.randint(0, n, (int(n*c),k)))
     x = x[~(x.apply(lambda row: len(row) != len(set(row)), axis=1))]
     if len(x)<n:
         return mdf_np(n, k)

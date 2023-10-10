@@ -43,9 +43,12 @@ def f_simulate(nsims, n, k):
 def gs_simulate(item):
     n, k = item
     df = mdf_np(n, k)
+    print('preference matrix created')
     preferences = df.copy()
     matches, _ = run_gale_shapley(df, k)
+    print('gale_shapley done')
     _,n, cycles = find_cycles(preferences, matches, k)
+    print('cycles found')
     n_in_cycles = 0
     for item in cycles:
         n_in_cycles += len(item)
@@ -147,6 +150,7 @@ def find_cycles(preferences, matches, k):
     ## Step 4: Prepare for Tarjan's Algorithm
     to_merge = matches.loc[:,[0, 'student_id']]
     pointing = pointing.merge(to_merge, on = 0, how = 'left')
+    pointing = pointing[pointing['student_id_y'].isin(pointing['student_id_x'])]
     normalizer = pd.DataFrame(pd.concat([pointing['student_id_x'], pointing['student_id_y']], axis = 0).unique())
     normalizer['new_id'] = normalizer.index
     pointing = pointing.merge(normalizer, left_on = 'student_id_x', right_on = 0, how = 'left')
@@ -160,7 +164,7 @@ def find_cycles(preferences, matches, k):
     g.SCC()
     return pairs, g.Cycle, g.cycles
 
-def make_df_cycles(n, k, results, save = False):
+def make_df_cycles(n, k, results, save = False, path = 'data/simulations/cycles/'):
     n_cycles = [item[0] for item in results]
     n_agents_in_cycles = [item[1] for item in results]
     n_matches = [item[2] for item in results]
@@ -169,5 +173,5 @@ def make_df_cycles(n, k, results, save = False):
                    'n_cycles': n_cycles, 'n_agents_in_cycles': n_agents_in_cycles,
                    'n_matches': n_matches, 'percent_in_cycles': percent_in_cycles})
     if save == True:
-        df.to_csv(f'data/simulations/cycles/n_{n}_k_{k}_cycles.csv')
+        df.to_csv(path +f'n_{n}_k_{k}_cycles.csv')
     return df
