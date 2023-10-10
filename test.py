@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import memory_profiler
 import sys
-sys.setrecursionlimit(1000000)
+sys.setrecursionlimit(4000)
 
 # Python program to find strongly connected components in a given
 # directed graph using Tarjan's algorithm (single DFS)
@@ -116,36 +116,32 @@ class Graph:
 
 
 
-@profile
-def run():
-    df = mdf_np(10000, 25)
-    preferences = df.copy()
-    matches, _ = run_gale_shapley(df, 25)
-    matches
-    preferences = preferences[preferences['student_id'].isin(matches['student_id'])]
-    preferences.reset_index(inplace = True, drop = True) 
-    preferences['rejections'] = matches.applications
-    relevant = preferences[preferences['rejections'] != 0]
-    for i in range(1,25):
-        relevant.iloc[:, i] = np.where(relevant['rejections']<i+1, -100, relevant.iloc[:, i])
-    relevant.set_index('student_id', inplace = True)
-    pointing = pd.DataFrame(relevant.iloc[:, :25].stack(level = 0)).reset_index()
-    pointing = pointing[pointing[0] != -100]
-    to_merge = matches.loc[:,[0, 'student_id']]
-    pointing = pointing.merge(to_merge, on = 0, how = 'left')
-    pointing = pointing[pointing['student_id_y'].isin(pointing['student_id_x'])]
-    normalizer = pd.DataFrame(pd.concat([pointing['student_id_x'], pointing['student_id_y']], axis = 0).unique())
-    normalizer['new_id'] = normalizer.index
-    pointing = pointing.merge(normalizer, left_on = 'student_id_x', right_on = 0, how = 'left')
-    pointing = pointing.merge(normalizer, left_on = 'student_id_y', right_on = 0, how = 'left')
-    pairs = pointing[['new_id_x', 'new_id_y']]
-    pairs
-    g = Graph(len(normalizer))
-    for i in range(len(pairs)):
-        g.addEdge(pairs.iloc[i, 0], pairs.iloc[i, 1])
-    pairs, Cycle = g.SCC()
-    print(Cycle)
-    print('hi')
-    
-if __name__ == '__main__':
-    run()
+df = mdf_np(4000, 60)
+preferences = df.copy()
+matches, _ = run_gale_shapley(df, 30)
+matches
+print(len(matches))
+preferences = preferences[preferences['student_id'].isin(matches['student_id'])]
+preferences.reset_index(inplace = True, drop = True) 
+preferences['rejections'] = matches.applications
+relevant = preferences[preferences['rejections'] != 0]
+for i in range(1,30):
+    relevant.iloc[:, i] = np.where(relevant['rejections']<i+1, -100, relevant.iloc[:, i])
+relevant.set_index('student_id', inplace = True)
+pointing = pd.DataFrame(relevant.iloc[:, :30].stack(level = 0)).reset_index()
+pointing = pointing[pointing[0] != -100]
+to_merge = matches.loc[:,[0, 'student_id']]
+pointing = pointing.merge(to_merge, on = 0, how = 'left')
+pointing = pointing[pointing['student_id_y'].isin(pointing['student_id_x'])]
+normalizer = pd.DataFrame(pd.concat([pointing['student_id_x'], pointing['student_id_y']], axis = 0).unique())
+normalizer['new_id'] = normalizer.index
+pointing = pointing.merge(normalizer, left_on = 'student_id_x', right_on = 0, how = 'left')
+pointing = pointing.merge(normalizer, left_on = 'student_id_y', right_on = 0, how = 'left')
+pairs = pointing[['new_id_x', 'new_id_y']]
+pairs
+g = Graph(len(normalizer))
+for i in range(len(pairs)):
+    g.addEdge(pairs.iloc[i, 0], pairs.iloc[i, 1])
+pairs, Cycle = g.SCC()
+print(Cycle)
+print('hi')
