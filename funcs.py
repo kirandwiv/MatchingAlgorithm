@@ -3,9 +3,39 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from parallel_pandas import ParallelPandas
 pd.options.mode.chained_assignment = None  # default='warn'
-
+from random import sample  
 
 ParallelPandas.initialize(n_cpu=16, split_factor=4, disable_pr_bar=True)
+
+def create_array(n, k):  
+    """  
+    Creates an n x k array where the observations are drawn from (1, n) and there is no repetition of values across rows.  
+  
+    :param n: Number of rows  
+    :param k: Number of columns  
+    :return: n x k array  
+    """  
+    if k > n:  
+        raise ValueError("k should be less than or equal to n.")  
+  
+    array = []  
+    for row in range(n):  
+        array.append(sample(range(1, n + 1), k))
+        
+    x = pd.DataFrame(array)
+    x = x.iloc[:n].reset_index(drop=True)
+    x['student_id'] = x.index
+    x['applications'] = 0
+    #x['N'] = 0
+    x['k'] = 0
+    x['matched'] = False
+    #x[['rank1', 'rank2', 'rank3']] = np.random.uniform(size=(n,3)) We need to change this so that it applies to all k
+    for i in np.arange(k):
+        var = 'rank' + str(i+1)
+        x[var] = np.random.uniform(size=(n,1))
+    x['underdemanded'] = True
+  
+    return x  
 
 ## Functions for generating data
 def mdf_np(n, k = 3, c=10):
@@ -19,7 +49,7 @@ def mdf_np(n, k = 3, c=10):
     x = pd.DataFrame(np.random.randint(0, n, (int(n*c),k)))
     x = x[~(x.apply(lambda row: len(row) != len(set(row)), axis=1))]
     if len(x)<n:
-        return mdf_np(n, k)
+        return mdf_np(n, k, c*1.5)
     else:
         x = x.iloc[:n].reset_index(drop=True)
         x['student_id'] = x.index

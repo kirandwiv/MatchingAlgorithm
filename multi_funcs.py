@@ -9,6 +9,8 @@ import json
 import ipywidgets as widgets
 from concurrent.futures import ThreadPoolExecutor
 from tarjan_alg import *  
+import networkx as nx
+import time
 
 ## Unpackers (these just unpack arguments for pre-existing functions so that they can be used with par.pool.map)
 def mdf_np_unpack(item):
@@ -54,10 +56,36 @@ def gs_simulate(item):
         n_in_cycles += len(item)
     return n, n_in_cycles, len(matches), cycles
 
+def gs_simulate_nx(item):
+    start = time.time()
+    n, k = item
+    #df = mdf_np(n, k, c = 200)
+    df = create_array(n,k)
+    end1 = time.time()
+    print(f"Time to make preferences: {end1-start}")
+    preferences = df.copy()
+    matches, _ = run_gale_shapley(df, k)
+    end2 = time.time()
+    print(f"Time to run GS: {end2-end1}")
+    edgelist = to_edgelist(preferences, matches, k)
+    end3 = time.time()
+    print(f"Time to make edgelist: {end3-end2}")
+    G= nx.from_pandas_edgelist(edgelist, source = 'new_id_x', target = 'new_id_y', create_using=nx.DiGraph())
+    n, n_in_cycles, cycles = get_strongly_connected_components(G)
+    end4 = time.time()
+    print(f"Time to find SCC: {end4-end3}")
+    return n, n_in_cycles, len(matches), cycles
+
 def gs_f_simulate(nsims, n, k):
     input_ls = [(n,k)]*int(nsims)
     pool = multiprocessing.Pool(multiprocessing.cpu_count())
     results = pool.map(gs_simulate, input_ls) # parallelize
+    return results
+
+def gs_f_simulate_nx(nsims, n, k):
+    input_ls = [(n,k)]*int(nsims)
+    pool = multiprocessing.Pool(multiprocessing.cpu_count())
+    results = pool.map(gs_simulate_nx, input_ls) # parallelize
     return results
 
 ## Simulations 
@@ -163,6 +191,52 @@ def find_cycles(preferences, matches, k):
         g.addEdge(pairs.iloc[i, 0], pairs.iloc[i, 1])
     g.SCC()
     return pairs, g.Cycle, g.cycles
+
+def to_edgelist(preferences, matches, k):
+    '''
+    Function that takes as an input the results of a simulation and returns the number
+    of cycles in the GS result.
+    _______
+    Inputs:
+    preference: the initial preference dataframe
+    matches: the GS matches dataframe
+    '''    
+    ## Step 1: drop all unmatched students from the preference dataframe.
+    preferences = preferences[preferences['student_id'].isin(matches['student_id'])]
+    preferences.reset_index(inplace = True, drop = True) 
+    
+    ## Step 2: Remove students who got preferred choice
+    preferences['rejections'] = matches.applications
+    relevant = preferences[preferences['rejections'] != 0] ## drop all who were never rejected. They will necessarily not point to anyone else. 
+    
+    ## Step 3: For others, keep only preferences above match. 
+    for i in range(1,k):
+        relevant.iloc[:, i] = np.where(relevant['rejections']<i+1, -100, relevant.iloc[:, i])
+    relevant.set_index('student_id', inplace = True)
+    pointing = pd.DataFrame(relevant.iloc[:, :k].stack(level = 0)).reset_index()
+    pointing = pointing[pointing[0] != -100]
+    
+    ## Step 4: Prepare for Tarjan's Algorithm
+    to_merge = matches.loc[:,[0, 'student_id']]
+    pointing = pointing.merge(to_merge, on = 0, how = 'left')
+    pointing = pointing[pointing['student_id_y'].isin(pointing['student_id_x'])]
+    normalizer = pd.DataFrame(pd.concat([pointing['student_id_x'], pointing['student_id_y']], axis = 0).unique())
+    normalizer['new_id'] = normalizer.index
+    pointing = pointing.merge(normalizer, left_on = 'student_id_x', right_on = 0, how = 'left')
+    pointing = pointing.merge(normalizer, left_on = 'student_id_y', right_on = 0, how = 'left')
+    pairs = pointing[['new_id_x', 'new_id_y']]
+    return pairs
+
+def get_strongly_connected_components(G):
+    scc = []
+    n_in_scc = 0
+    n_scc = 0
+    for cc in nx.kosaraju_strongly_connected_components(G):
+        if len(cc)>1:
+           scc.append(list(cc))
+           n_in_scc += len(cc)
+           n_scc += 1
+    return n_scc, n_in_scc, scc
 
 def make_df_cycles(n, k, results, save = False, path = 'data/simulations/cycles/'):
     n_cycles = [item[0] for item in results]
