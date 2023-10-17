@@ -249,3 +249,47 @@ def make_df_cycles(n, k, results, save = False, path = 'data/simulations/cycles/
     if save == True:
         df.to_csv(path +f'n_{n}_k_{k}_cycles.csv')
     return df
+
+def get_max_weight_matching(preferences, matches, n, k):
+    '''
+    This algorithm identifies the max_weight_matching among agents
+    and determines the number of changes between the GS algorithm and
+    the max_weight_matching.
+    __________
+    Inputs:
+    preferences: the initial preference dataframe
+    matches: the GS matches dataframe 
+    '''
+    # Step 1: Remove Unmatched Students
+    preferences = preferences[preferences['student_id'].isin(matches['student_id'])]
+    preferences.reset_index(inplace = True, drop = True) 
+    # Step 2: Remove students who got their top choice (they'll never be improved)
+    preferences['rejections'] = matches.applications
+    relevant = preferences[preferences['rejections'] != 0] 
+    # Step 3: For others, keep only preferences above match AND their Match.
+    for i in range(1,k):
+        relevant.iloc[:, i] = np.where(relevant['rejections']<i, -100, relevant.iloc[:, i])
+    relevant.set_index('student_id', inplace = True)
+    
+    # Stack the DataFrame to create an edgelist
+    pointing = pd.DataFrame(relevant.iloc[:, :3].stack(level = 0)).reset_index()
+    # Drop all irrelevant matches 
+    pointing = pointing[pointing[0] != -100]
+    # Set Appropriate Weigths for the edgelist (3n on match, 3n+1 on all preferred)
+    l1 = [([3*len(preferences)+1]*(k) + [3*len(preferences)]) for k in relevant.rejections]
+    l2 = [item for sublist in l1 for item in sublist]
+    pointing['weight'] = l2
+    # Remove schools matched to a first-choice student. No-one should bother pointing to those
+    first_match_schools = matches[matches['applications'] == 0][0]
+    pointing = pointing[~(pointing[0].isin(first_match_schools))]
+    # Add S to denote "school". We want to make sure they're not being confused
+    pointing[0] = pointing[0].astype(str)+'S' 
+    pointing.drop('level_1', axis = 1, inplace = True)
+    pointing.columns = ['source', 'target', 'weight']
+    
+    # Create Graph
+    G= nx.from_pandas_edgelist(pointing, edge_attr = True)
+    # Solve for Max Weight Matching
+    max_weight_matching = nx.max_weight_matching(G)
+    
+    
