@@ -76,6 +76,20 @@ def gs_simulate_nx(item):
     print(f"Time to find SCC: {end4-end3}")
     return n, n_in_cycles, len(matches), cycles
 
+def gs_simulate_nx_max(item):
+    start = time.time()
+    n, k = item
+    #df = mdf_np(n, k, c = 200)
+    df = create_array(n,k)
+    end1 = time.time()
+    print(f"Time to make preferences: {end1-start}")
+    preferences = df.copy()
+    matches, _ = run_gale_shapley(df, k)
+    end2 = time.time()
+    print(f"Time to run GS: {end2-end1}")
+    n_changed, n_matches = get_max_weight_matching(preferences, matches, n, k)
+    return n_changed, n_matches
+
 def gs_f_simulate(nsims, n, k):
     input_ls = [(n,k)]*int(nsims)
     pool = multiprocessing.Pool(multiprocessing.cpu_count())
@@ -86,6 +100,12 @@ def gs_f_simulate_nx(nsims, n, k):
     input_ls = [(n,k)]*int(nsims)
     pool = multiprocessing.Pool(multiprocessing.cpu_count())
     results = pool.map(gs_simulate_nx, input_ls) # parallelize
+    return results
+
+def gs_f_simulate_nx_max(nsims, n, k):
+    input_ls = [(n,k)]*int(nsims)
+    pool = multiprocessing.Pool(multiprocessing.cpu_count())
+    results = pool.map(gs_simulate_nx_max, input_ls) # parallelize
     return results
 
 ## Simulations 
@@ -270,13 +290,14 @@ def get_max_weight_matching(preferences, matches, n, k):
     for i in range(1,k):
         relevant.iloc[:, i] = np.where(relevant['rejections']<i, -100, relevant.iloc[:, i])
     relevant.set_index('student_id', inplace = True)
-    
+    n_matches = len(matches)
     # Stack the DataFrame to create an edgelist
-    pointing = pd.DataFrame(relevant.iloc[:, :3].stack(level = 0)).reset_index()
+    pointing = pd.DataFrame(relevant.iloc[:, :k].stack(level = 0)).reset_index()
     # Drop all irrelevant matches 
     pointing = pointing[pointing[0] != -100]
+    pointing = pointing.reset_index(drop=True)
     # Set Appropriate Weigths for the edgelist (3n on match, 3n+1 on all preferred)
-    l1 = [([3*len(preferences)+1]*(k) + [3*len(preferences)]) for k in relevant.rejections]
+    l1 = [([k*n+1]*(l) + [k*n]) for l in relevant.rejections]
     l2 = [item for sublist in l1 for item in sublist]
     pointing['weight'] = l2
     # Remove schools matched to a first-choice student. No-one should bother pointing to those
@@ -291,5 +312,53 @@ def get_max_weight_matching(preferences, matches, n, k):
     G= nx.from_pandas_edgelist(pointing, edge_attr = True)
     # Solve for Max Weight Matching
     max_weight_matching = nx.max_weight_matching(G)
+    max_matches = pd.DataFrame(max_weight_matching)
+    matches = matches[matches['applications']!=0]
+    matches = matches[[0, 'student_id']]
+    matches[0]= matches[0].astype(str)+'S'
+    mask = max_matches[0].isin(matches[0])
+    max_matches['school_id'] = np.where(max_matches[0].isin(matches[0]), max_matches[0], max_matches[1])
+    max_matches['student_id'] = np.where(max_matches[0].isin(matches[0]), max_matches[1], max_matches[0])
+    x2 = set(zip(max_matches['school_id'], max_matches['student_id']))
+    x1 = set(zip(matches[0], matches['student_id']))
+    n_diff = len(x1.difference(x2))
+    return n_diff, n_matches, x1, x2
+
+def make_df_max_match(n, k, results, save = False, path = 'data/simulations/max_matches/'):
+    n_changes = [item[0] for item in results]
+    n_matches = [item[1] for item in results]
+    percent_changed = [item[0]/item[1] for item in results]
+    df = pd.DataFrame({'n': [n]*len(n_matches), 'k': [k]*len(n_changes),
+                   'n_changes': n_changes,
+                   'n_matches': n_matches, 'percent_changed': percent_changed})
+    if save == True:
+        df.to_csv(path +f'n_{n}_k_{k}_max_diff.csv')
+    return df
+
+def len_cycles(x1, x2):
+    '''
+    This function takes as inputs the results from the Gale-Shapley and the Max Matching and returns the length of the implied cycles,
+    as well as the cycles themselves. 
+    '''
+    original_match = dict(x1)
+    difference = dict(x2.difference(x1))
+    difference = {difference[i]:i for i in difference} # reverse the dictionary for ease of use
     
-    
+    explored = [] # initiate list of explored nodes
+    unexplored = list(difference.keys()) # initiate list of unexplored nodes
+    cycle_lengths = [] # initiate list of cycle lengths
+    cycles = [] # initiate list of cycles
+
+    while len(unexplored) != 0:
+        current_node = unexplored[0] # start with first unexplored node 
+        current_cycle = [] # initiate list of nodes in current cycle
+        while current_node not in current_cycle: # condition is that we've not already visited this node
+            current_cycle.append(current_node) # add the current node to our current cycle
+            explored.append(current_node) # add the current node to our list of explored nodes
+            unexplored.remove(current_node) # remove the current node from our list of unexplored nodes
+            matched_school = difference[current_node] # find the school that the current node is matched to
+            current_node = original_match[matched_school] # find the student that the school was matched to originally. Then repeat with that node.
+        cycle_lengths.append(len(current_cycle))  # once we've found a cycle, add the length of the cycle to our list of cycle lengths
+        cycles.append(current_cycle) # once we've found a cycle, add the cycle to our list of cycles
+
+    return cycle_lengths, cycles
