@@ -76,7 +76,7 @@ def gs_simulate_nx(item):
     print(f"Time to find SCC: {end4-end3}")
     return n, n_in_cycles, len(matches), cycles
 
-def gs_simulate_nx_max(item):
+def gs_simulate_nx_max_lengths(item, length_of = True):
     start = time.time()
     n, k = item
     #df = mdf_np(n, k, c = 200)
@@ -87,7 +87,23 @@ def gs_simulate_nx_max(item):
     matches, _ = run_gale_shapley(df, k)
     end2 = time.time()
     print(f"Time to run GS: {end2-end1}")
-    n_changed, n_matches = get_max_weight_matching(preferences, matches, n, k)
+    n_changed, n_matches, x1, x2 = get_max_weight_matching(preferences, matches, n, k)
+    cycle_lengths, _ = len_cycles(x1, x2)
+    percent_lengths = [item/n_matches for item in cycle_lengths]
+    return cycle_lengths, percent_lengths
+
+def gs_simulate_nx_max(item, length_of = True):
+    start = time.time()
+    n, k = item
+    #df = mdf_np(n, k, c = 200)
+    df = create_array(n,k)
+    end1 = time.time()
+    print(f"Time to make preferences: {end1-start}")
+    preferences = df.copy()
+    matches, _ = run_gale_shapley(df, k)
+    end2 = time.time()
+    print(f"Time to run GS: {end2-end1}")
+    n_changed, n_matches, x1, x2 = get_max_weight_matching(preferences, matches, n, k)
     return n_changed, n_matches
 
 def gs_f_simulate(nsims, n, k):
@@ -107,6 +123,28 @@ def gs_f_simulate_nx_max(nsims, n, k):
     pool = multiprocessing.Pool(multiprocessing.cpu_count())
     results = pool.map(gs_simulate_nx_max, input_ls) # parallelize
     return results
+
+def gs_f_simulate_nx_max_lengths(nsims, n, k):
+    input_ls = [(n,k)]*int(nsims)
+    pool = multiprocessing.Pool(multiprocessing.cpu_count())
+    results = pool.map(gs_simulate_nx_max_lengths, input_ls) # parallelize
+    return results
+
+
+def s_simulate_MM_EA_GS(item):
+    n, k = item
+    df = mdf_np(n, k)
+    df1 = df.copy()
+    EADAM_results, GS_result, _, _, _ = EADAM(df, k)
+    
+    return df1, result
+
+
+def f_simulate_MM_EA_GS(nsims, n, k):
+    input_ls = [(n,k)]*int(nsims)
+    pool = multiprocessing.Pool(multiprocessing.cpu_count())
+    results = pool.map(s_simulate_MM_EA_GS, input_ls) # parallelize
+    return results   
 
 ## Simulations 
 
@@ -324,7 +362,17 @@ def get_max_weight_matching(preferences, matches, n, k):
     n_diff = len(x1.difference(x2))
     return n_diff, n_matches, x1, x2
 
-def make_df_max_match(n, k, results, save = False, path = 'data/simulations/max_matches/'):
+def make_df_max_match_length(n, k, results, save = False, path = 'data/simulations/max_length_matches/'):
+    results1 = [item[0] for item in results]
+    results2 = [item[1] for item in results]
+    cycle_lengths = [item for sublist in results1 for item in sublist]
+    as_percent_of_matches = [item for sublist in results2 for item in sublist]
+    df = pd.DataFrame({'n': [n]*len(cycle_lengths), 'k': [k]*len(cycle_lengths), 'cycle_lengths': cycle_lengths,'as_percent_of_matches': as_percent_of_matches})
+    if save == True:
+        df.to_csv(path +f'n_{n}_k_{k}_max_length_diff.csv')
+    return df
+
+def make_df_max_match(n, k, results, save = False, path = 'data/simulations/max_matches_1000_4_6_8/'):
     n_changes = [item[0] for item in results]
     n_matches = [item[1] for item in results]
     percent_changed = [item[0]/item[1] for item in results]
