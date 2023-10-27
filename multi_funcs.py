@@ -134,9 +134,10 @@ def gs_f_simulate_nx_max_lengths(nsims, n, k):
 def s_simulate_MM_EA_GS(item):
     n, k = item
     df = mdf_np(n, k)
-    df1 = df.copy()
-    EADAM_results, GS_result, _, _, _ = EADAM(df, k)
-    
+    preferences = df.copy()
+    _, GS_result, _, _, eadam_results = EADAM(df, k)
+    n_changes, n_matches, x1, x2 = get_max_weight_matching(preferences, GS_result, n, k, EADAM = False)
+    n_changes, n_matches, 
     return df1, result
 
 
@@ -308,7 +309,7 @@ def make_df_cycles(n, k, results, save = False, path = 'data/simulations/cycles/
         df.to_csv(path +f'n_{n}_k_{k}_cycles.csv')
     return df
 
-def get_max_weight_matching(preferences, matches, n, k):
+def get_max_weight_matching(preferences, matches, n, k, EADAM = False):
     '''
     This algorithm identifies the max_weight_matching among agents
     and determines the number of changes between the GS algorithm and
@@ -318,49 +319,90 @@ def get_max_weight_matching(preferences, matches, n, k):
     preferences: the initial preference dataframe
     matches: the GS matches dataframe 
     '''
-    # Step 1: Remove Unmatched Students
-    preferences = preferences[preferences['student_id'].isin(matches['student_id'])]
-    preferences.reset_index(inplace = True, drop = True) 
-    # Step 2: Remove students who got their top choice (they'll never be improved)
-    preferences['rejections'] = matches.applications
-    relevant = preferences[preferences['rejections'] != 0] 
-    # Step 3: For others, keep only preferences above match AND their Match.
-    for i in range(1,k):
-        relevant.iloc[:, i] = np.where(relevant['rejections']<i, -100, relevant.iloc[:, i])
-    relevant.set_index('student_id', inplace = True)
-    n_matches = len(matches)
-    # Stack the DataFrame to create an edgelist
-    pointing = pd.DataFrame(relevant.iloc[:, :k].stack(level = 0)).reset_index()
-    # Drop all irrelevant matches 
-    pointing = pointing[pointing[0] != -100]
-    pointing = pointing.reset_index(drop=True)
-    # Set Appropriate Weigths for the edgelist (3n on match, 3n+1 on all preferred)
-    l1 = [([k*n+1]*(l) + [k*n]) for l in relevant.rejections]
-    l2 = [item for sublist in l1 for item in sublist]
-    pointing['weight'] = l2
-    # Remove schools matched to a first-choice student. No-one should bother pointing to those
-    first_match_schools = matches[matches['applications'] == 0][0]
-    pointing = pointing[~(pointing[0].isin(first_match_schools))]
-    # Add S to denote "school". We want to make sure they're not being confused
-    pointing[0] = pointing[0].astype(str)+'S' 
-    pointing.drop('level_1', axis = 1, inplace = True)
-    pointing.columns = ['source', 'target', 'weight']
-    
-    # Create Graph
-    G= nx.from_pandas_edgelist(pointing, edge_attr = True)
-    # Solve for Max Weight Matching
-    max_weight_matching = nx.max_weight_matching(G)
-    max_matches = pd.DataFrame(max_weight_matching)
-    matches = matches[matches['applications']!=0]
-    matches = matches[[0, 'student_id']]
-    matches[0]= matches[0].astype(str)+'S'
-    mask = max_matches[0].isin(matches[0])
-    max_matches['school_id'] = np.where(max_matches[0].isin(matches[0]), max_matches[0], max_matches[1])
-    max_matches['student_id'] = np.where(max_matches[0].isin(matches[0]), max_matches[1], max_matches[0])
-    x2 = set(zip(max_matches['school_id'], max_matches['student_id']))
-    x1 = set(zip(matches[0], matches['student_id']))
-    n_diff = len(x1.difference(x2))
-    return n_diff, n_matches, x1, x2
+    if EADAM == False:
+        # Step 1: Remove Unmatched Students
+        preferences = preferences[preferences['student_id'].isin(matches['student_id'])]
+        preferences.reset_index(inplace = True, drop = True) 
+        # Step 2: Remove students who got their top choice (they'll never be improved)
+        preferences['rejections'] = matches.applications
+        relevant = preferences[preferences['rejections'] != 0] 
+        # Step 3: For others, keep only preferences above match AND their Match.
+        for i in range(1,k):
+            relevant.iloc[:, i] = np.where(relevant['rejections']<i, -100, relevant.iloc[:, i])
+        relevant.set_index('student_id', inplace = True)
+        n_matches = len(matches)
+        # Stack the DataFrame to create an edgelist
+        pointing = pd.DataFrame(relevant.iloc[:, :k].stack(level = 0)).reset_index()
+        # Drop all irrelevant matches 
+        pointing = pointing[pointing[0] != -100]
+        pointing = pointing.reset_index(drop=True)
+        # Set Appropriate Weigths for the edgelist (3n on match, 3n+1 on all preferred)
+        l1 = [([k*n+1]*(l) + [k*n]) for l in relevant.rejections]
+        l2 = [item for sublist in l1 for item in sublist]
+        pointing['weight'] = l2
+        # Remove schools matched to a first-choice student. No-one should bother pointing to those
+        first_match_schools = matches[matches['applications'] == 0][0]
+        pointing = pointing[~(pointing[0].isin(first_match_schools))]
+        # Add S to denote "school". We want to make sure they're not being confused
+        pointing[0] = pointing[0].astype(str)+'S' 
+        pointing.drop('level_1', axis = 1, inplace = True)
+        pointing.columns = ['source', 'target', 'weight']
+        
+        # Create Graph
+        G= nx.from_pandas_edgelist(pointing, edge_attr = True)
+        # Solve for Max Weight Matching
+        max_weight_matching = nx.max_weight_matching(G)
+        max_matches = pd.DataFrame(max_weight_matching)
+        matches = matches[matches['applications']!=0]
+        matches = matches[[0, 'student_id']]
+        matches[0]= matches[0].astype(str)+'S'
+        mask = max_matches[0].isin(matches[0])
+        max_matches['school_id'] = np.where(max_matches[0].isin(matches[0]), max_matches[0], max_matches[1])
+        max_matches['student_id'] = np.where(max_matches[0].isin(matches[0]), max_matches[1], max_matches[0])
+        x2 = set(zip(max_matches['school_id'], max_matches['student_id']))
+        x1 = set(zip(matches[0], matches['student_id']))
+        n_diff = len(x1.difference(x2))
+        return n_diff, n_matches, x1, x2
+    else:
+        eadam_results = matches.copy()
+        n_matches = len(matches)
+        schools_to_remove = eadam_results[eadam_results['applications'] == 0][0]
+        eadam_results = eadam_results[eadam_results['applications'] != 0] ## Here I dropped the rows where only a single application was made. 
+        preferences = preferences[preferences['student_id'].isin(eadam_results['student_id'])]
+        preferences.reset_index(inplace = True, drop = True) 
+        preferences.sort_values(by = 'student_id', inplace = True)
+        eadam_results.sort_values(by = 'student_id', inplace = True)
+        eadam_results.reset_index(inplace = True, drop = True)
+        has_checked = np.zeros(len(preferences))
+        for i in range(0,k):
+            preferences.iloc[:,i] = np.where(has_checked == False, preferences.iloc[:, i], -100)
+            has_checked = np.where(preferences.iloc[:, i] == eadam_results.iloc[:, 0], True, has_checked)  
+        relevant = pd.DataFrame(preferences.iloc[:, :k].stack(level = 0)).reset_index()
+        pointing = relevant[relevant[0] != -100]
+        pointing = pointing.reset_index(drop=True)
+        # Set Appropriate Weigths for the edgelist (3n on match, 3n+1 on all preferred)
+        sizes = pointing.groupby('level_0').count()[0].to_list()
+        l1 = [([k*n+1]*(l-1) + [k*n]) for l in sizes]
+        l2 = [item for sublist in l1 for item in sublist]
+        pointing['weight'] = l2
+        pointing = pointing[~pointing[0].isin(schools_to_remove)]
+        pointing[0] = pointing[0].astype(str)+'S' 
+        pointing.drop('level_1', axis = 1, inplace = True)
+        pointing.columns = ['source', 'target', 'weight']
+        
+        # Create Graph
+        original = pointing[pointing.weight == 3000]
+        original = original[['source', 'target']]
+        G= nx.from_pandas_edgelist(pointing, edge_attr = True)
+        # Solve for Max Weight Matching
+        max_weight_matching = nx.max_weight_matching(G)
+        max_matches = pd.DataFrame(max_weight_matching)
+        max_matches['school_id'] = np.where(max_matches[0].isin(original['target']), max_matches[0], max_matches[1])
+        max_matches['student_id'] = np.where(max_matches[0].isin(original['target']), max_matches[1], max_matches[0])
+        x2 = set(zip(max_matches['school_id'], max_matches['student_id']))
+        x1 = set(zip(original['target'], original['source']))
+        n_diff = len(x1.difference(x2))
+        return n_diff, n_matches, x1, x2
 
 def make_df_max_match_length(n, k, results, save = False, path = 'data/simulations/max_length_matches/'):
     results1 = [item[0] for item in results]
