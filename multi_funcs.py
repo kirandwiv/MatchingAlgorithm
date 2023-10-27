@@ -130,16 +130,18 @@ def gs_f_simulate_nx_max_lengths(nsims, n, k):
     results = pool.map(gs_simulate_nx_max_lengths, input_ls) # parallelize
     return results
 
-
 def s_simulate_MM_EA_GS(item):
     n, k = item
     df = mdf_np(n, k)
     preferences = df.copy()
     _, GS_result, _, _, eadam_results = EADAM(df, k)
     n_changes, n_matches, x1, x2 = get_max_weight_matching(preferences, GS_result, n, k, EADAM = False)
-    n_changes, n_matches, 
-    return df1, result
-
+    n_changes, n_matches, x_eadam_1, x_eadam_2 = get_max_weight_matching(preferences, eadam_results, n, k, EADAM = True)
+    cycle_lengths, _ = len_cycles(x1, x2)
+    percent_lengths = [item/n_matches for item in cycle_lengths]
+    cycle_lengths1, _ = len_cycles(x_eadam_1, x_eadam_2)
+    percent_lengths1 = [item/n_matches for item in cycle_lengths1]
+    return cycle_lengths, percent_lengths, cycle_lengths1, percent_lengths1
 
 def f_simulate_MM_EA_GS(nsims, n, k):
     input_ls = [(n,k)]*int(nsims)
@@ -391,7 +393,7 @@ def get_max_weight_matching(preferences, matches, n, k, EADAM = False):
         pointing.columns = ['source', 'target', 'weight']
         
         # Create Graph
-        original = pointing[pointing.weight == 3000]
+        original = pointing[pointing.weight == k*n]
         original = original[['source', 'target']]
         G= nx.from_pandas_edgelist(pointing, edge_attr = True)
         # Solve for Max Weight Matching
@@ -404,12 +406,17 @@ def get_max_weight_matching(preferences, matches, n, k, EADAM = False):
         n_diff = len(x1.difference(x2))
         return n_diff, n_matches, x1, x2
 
-def make_df_max_match_length(n, k, results, save = False, path = 'data/simulations/max_length_matches/'):
+def make_df_max_match_length(n, k, results, save = False, path = 'data/simulations/max_length_matches_w_eadam/'):
     results1 = [item[0] for item in results]
     results2 = [item[1] for item in results]
+    results3 = [item[2] for item in results]
+    results4 = [item[3] for item in results]
     cycle_lengths = [item for sublist in results1 for item in sublist]
     as_percent_of_matches = [item for sublist in results2 for item in sublist]
-    df = pd.DataFrame({'n': [n]*len(cycle_lengths), 'k': [k]*len(cycle_lengths), 'cycle_lengths': cycle_lengths,'as_percent_of_matches': as_percent_of_matches})
+    cycle_lengths_eadam = [item for sublist in results3 for item in sublist]
+    as_percent_of_matches_eadam = [item for sublist in results4 for item in sublist]
+    df = pd.DataFrame({'n': [n]*len(cycle_lengths), 'k': [k]*len(cycle_lengths), 'cycle_lengths': cycle_lengths,
+                       'as_percent_of_matches': as_percent_of_matches, 'cycle_lengths_eadam': cycle_lengths_eadam, 'as_percent_of_matches_eadam': as_percent_of_matches_eadam})
     if save == True:
         df.to_csv(path +f'n_{n}_k_{k}_max_length_diff.csv')
     return df
