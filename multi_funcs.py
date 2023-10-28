@@ -415,9 +415,11 @@ def make_df_max_match_length(n, k, results, save = False, path = 'data/simulatio
     as_percent_of_matches = [item for sublist in results2 for item in sublist]
     cycle_lengths_eadam = [item for sublist in results3 for item in sublist]
     as_percent_of_matches_eadam = [item for sublist in results4 for item in sublist]
-    df = pd.DataFrame({'n': [n]*len(cycle_lengths), 'k': [k]*len(cycle_lengths), 'cycle_lengths': cycle_lengths, 'as_percent_of_matches': as_percent_of_matches, 'cycle_lengths_eadam': cycle_lengths_eadam, 'as_percent_of_matches_eadam': as_percent_of_matches_eadam})
+    df = pd.DataFrame({'n': [n]*len(cycle_lengths), 'k': [k]*len(cycle_lengths), 'cycle_lengths': cycle_lengths, 'as_percent_of_matches': as_percent_of_matches})
+    df2 = pd.DataFrame({'n': [n]*len(cycle_lengths_eadam), 'k': [k]*len(cycle_lengths_eadam), 'cycle_lengths_eadam': cycle_lengths_eadam, 'as_percent_of_matches_eadam': as_percent_of_matches_eadam})
     if save == True:
         df.to_csv(path +f'n_{n}_k_{k}_max_length_diff.csv')
+        df2.to_csv(path +f'n_{n}_k_{k}_max_length_diff_eadam.csv')
     return df
 
 def make_df_max_match(n, k, results, save = False, path = 'data/simulations/max_matches_1000_4_6_8/'):
