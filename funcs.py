@@ -241,8 +241,8 @@ def EADAM(sp, k = 3):
         sp = sp_f
         iter_list.append(i)
         j += 1
-    EADAM_result = pd.concat([sp_f, *undermatched_matches], ignore_index=True) ## add the final results in too.
-    return sp_f, gs_result, iter_list, j, EADAM_result
+    eadam_result = pd.concat([sp_f, *undermatched_matches], ignore_index=True) ## add the final results in too.
+    return sp_f, gs_result, iter_list, j, eadam_result
 
 ## Analysis Functions
 
