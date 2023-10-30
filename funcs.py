@@ -221,6 +221,7 @@ def remove_ud(sp_f, sp):
     return sp_new
 
 # EADAM Algorithm:
+# EADAM Algorithm:
 def EADAM(sp, k = 3):
     '''
     This function runs the EADAM algorithm.
@@ -231,17 +232,25 @@ def EADAM(sp, k = 3):
     j = 0 ## initialize counter, counts number of rounds in EADAM (number of times we run GS)
     iter_list = [] ## initialize list to hold the number of iterations in each GS run.
     undermatched_matches = [] ## initialize list to hold the number of undermatched students in each round
+
     while change == True:
-        sp_f, i = run_gale_shapley(sp, k)
+        sp_use = sp.copy()
+        sp_f, i = run_gale_shapley(sp_use, k)
+        sp_f.reset_index(inplace=True, drop=True)
         if j == 0:
             gs_result = sp_f
         undermatched_matches.append(sp_f[sp_f['underdemanded'] == True]) ## save the deleted undermatched results.
-        sp_f = remove_ud(sp_f, sp)
-        change = compare(sp_f, sp)
-        sp = sp_f
+        sp = sp[sp['student_id'].isin(sp_f['student_id'])] ## delete the unmatched students from the original
+        sp.reset_index(drop=True, inplace=True)
+        sp = sp[sp_f['underdemanded'] == False] ## delete the students matched to underdemanded schools. 
+        if len(sp) == 0:
+            change = False
+        else:
+            change = True
+        #change = compare(sp_f, sp_use)
         iter_list.append(i)
         j += 1
-    eadam_result = pd.concat([sp_f, *undermatched_matches], ignore_index=True) ## add the final results in too.
+    eadam_result = pd.concat([*undermatched_matches], ignore_index=True) ## add the final results in too.
     return sp_f, gs_result, iter_list, j, eadam_result
 
 ## Analysis Functions

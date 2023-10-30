@@ -188,7 +188,7 @@ def obtain_n_diffs(results):
     and returns a list of tuples. Where first term is the difference, second term is the length of initial matches. 
     '''
     relevant = [[item[1], item[4]] for item in results]
-    differences = [(len(find_diff(item[0], item[1])), len(item[0])) for item in relevant]
+    differences = [(len(find_diff(item[0], item[1]))/2, len(item[0])) for item in relevant]
     percent_diff = [item[0]/item[1] for item in differences]
     return differences, percent_diff
 
