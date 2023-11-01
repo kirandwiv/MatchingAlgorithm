@@ -132,14 +132,17 @@ def gs_f_simulate_nx_max_lengths(nsims, n, k):
 
 def s_simulate_MM_EA_GS(item):
     n, k = item
-    df = mdf_np(n, k)
+    df = create_array(n,k)
     preferences = df.copy()
     _, GS_result, _, _, eadam_results = EADAM(df, k)
     n_changes, n_matches, x1, x2 = get_max_weight_matching(preferences, GS_result, n, k, EADAM = False)
-    n_changes, n_matches, x_eadam_1, x_eadam_2 = get_max_weight_matching(preferences, eadam_results, n, k, EADAM = True)
     cycle_lengths, _ = len_cycles(x1, x2)
     percent_lengths = [item/n_matches for item in cycle_lengths]
-    cycle_lengths1, _ = len_cycles(x_eadam_1, x_eadam_2)
+    eadam_results[0] = eadam_results[0].astype(str)+'S'
+    x3 = set(zip(eadam_results[0], eadam_results['student_id']))
+    GS_result[0] = GS_result[0].astype(str)+'S'
+    x4 = set(zip(GS_result[0], GS_result['student_id']))
+    cycle_lengths1, _ = len_cycles(x4, x3)
     percent_lengths1 = [item/n_matches for item in cycle_lengths1]
     return cycle_lengths, percent_lengths, cycle_lengths1, percent_lengths1
 
