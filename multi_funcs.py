@@ -425,6 +425,16 @@ def make_df_max_match_length(n, k, results, save = False, path = 'data/simulatio
         df2.to_csv(path +f'n_{n}_k_{k}_max_length_diff_eadam.csv')
     return df
 
+def make_df_max_match_length_single(n, k, results, save = False, path = 'data/simulations/max_length_matches_w_eadam/'):
+    results1 = [item[0] for item in results]
+    results2 = [item[1] for item in results]
+    cycle_lengths = [item for sublist in results1 for item in sublist]
+    as_percent_of_matches = [item for sublist in results2 for item in sublist]
+    df = pd.DataFrame({'n': [n]*len(cycle_lengths), 'k': [k]*len(cycle_lengths), 'cycle_lengths': cycle_lengths, 'as_percent_of_matches': as_percent_of_matches})
+    if save == True:
+        df.to_csv(path +f'n_{n}_k_{k}_max_length_diff.csv')
+    return df
+
 def make_df_max_match(n, k, results, save = False, path = 'data/simulations/max_matches_1000_4_6_8/'):
     n_changes = [item[0] for item in results]
     n_matches = [item[1] for item in results]
