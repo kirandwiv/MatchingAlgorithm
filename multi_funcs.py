@@ -135,6 +135,7 @@ def s_simulate_MM_EA_GS(item):
     df = create_array(n,k)
     preferences = df.copy()
     _, GS_result, _, _, eadam_results = EADAM(df, k)
+    n_changes_eadam = len(find_diff(GS_result, eadam_results))
     n_changes, n_matches, x1, x2 = get_max_weight_matching(preferences, GS_result, n, k, EADAM = False)
     cycle_lengths, _ = len_cycles(x1, x2)
     percent_lengths = [item/n_matches for item in cycle_lengths]
@@ -144,7 +145,7 @@ def s_simulate_MM_EA_GS(item):
     x4 = set(zip(GS_result[0], GS_result['student_id']))
     cycle_lengths1, _ = len_cycles(x4, x3)
     percent_lengths1 = [item/n_matches for item in cycle_lengths1]
-    return cycle_lengths, percent_lengths, cycle_lengths1, percent_lengths1
+    return cycle_lengths, percent_lengths, cycle_lengths1, percent_lengths1, n_changes, n_matches, n_changes_eadam
 
 def f_simulate_MM_EA_GS(nsims, n, k):
     input_ls = [(n,k)]*int(nsims)
@@ -414,15 +415,22 @@ def make_df_max_match_length(n, k, results, save = False, path = 'data/simulatio
     results2 = [item[1] for item in results]
     results3 = [item[2] for item in results]
     results4 = [item[3] for item in results]
+    results5 = [item[4] for item in results]
+    results6 = [item[5] for item in results]
+    results7 = [item[6] for item in results]
     cycle_lengths = [item for sublist in results1 for item in sublist]
     as_percent_of_matches = [item for sublist in results2 for item in sublist]
     cycle_lengths_eadam = [item for sublist in results3 for item in sublist]
     as_percent_of_matches_eadam = [item for sublist in results4 for item in sublist]
     df = pd.DataFrame({'n': [n]*len(cycle_lengths), 'k': [k]*len(cycle_lengths), 'cycle_lengths': cycle_lengths, 'as_percent_of_matches': as_percent_of_matches})
     df2 = pd.DataFrame({'n': [n]*len(cycle_lengths_eadam), 'k': [k]*len(cycle_lengths_eadam), 'cycle_lengths_eadam': cycle_lengths_eadam, 'as_percent_of_matches_eadam': as_percent_of_matches_eadam})
+    df3 = pd.DataFrame({'n': [n]*len(results5), 'k': [k]*len(results5), 'n_changes': results5, 'n_matches': results6})
+    df4 = pd.DataFrame({'n': [n]*len(results7), 'k': [k]*len(results7), 'n_changes_eadam': results7, 'n_matches': results6})
     if save == True:
         df.to_csv(path +f'n_{n}_k_{k}_max_length_diff.csv')
         df2.to_csv(path +f'n_{n}_k_{k}_max_length_diff_eadam.csv')
+        df3.to_csv(path +f'n_{n}_k_{k}_max_diff.csv')
+        df4.to_csv(path +f'n_{n}_k_{k}_max_diff_eadam.csv')
     return df
 
 def make_df_max_match_length_single(n, k, results, save = False, path = 'data/simulations/max_length_matches_w_eadam/'):
