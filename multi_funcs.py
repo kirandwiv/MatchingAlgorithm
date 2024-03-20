@@ -88,7 +88,11 @@ def gs_simulate_nx_max_lengths(item, length_of = True):
     end2 = time.time()
     print(f"Time to run GS: {end2-end1}")
     n_changed, n_matches, x1, x2 = get_max_weight_matching(preferences, matches, n, k)
+    end3 = time.time()
+    print(f"Time to find max weight matching: {end3-end2}")
     cycle_lengths, _ = len_cycles(x1, x2)
+    end4 = time.time()
+    print(f"Time to find cycles: {end4-end3}")
     percent_lengths = [item/n_matches for item in cycle_lengths]
     return cycle_lengths, percent_lengths
 
@@ -431,6 +435,17 @@ def make_df_max_match_length(n, k, results, save = False, path = 'data/simulatio
         df2.to_csv(path +f'n_{n}_k_{k}_max_length_diff_eadam.csv')
         df3.to_csv(path +f'n_{n}_k_{k}_max_diff.csv')
         df4.to_csv(path +f'n_{n}_k_{k}_max_diff_eadam.csv')
+    return df
+
+def make_df_max_match_length_MM(n, k, results, save = False, path = 'data/simulations/max_matching_lengths/'):
+    results1 = [item[0] for item in results]
+    results2 = [item[1] for item in results]
+
+    cycle_lengths = [item for sublist in results1 for item in sublist]
+    as_percent_of_matches = [item for sublist in results2 for item in sublist]
+    df = pd.DataFrame({'n': [n]*len(cycle_lengths), 'k': [k]*len(cycle_lengths), 'cycle_lengths': cycle_lengths, 'as_percent_of_matches': as_percent_of_matches})
+    if save == True:
+        df.to_csv(path +f'n_{n}_k_{k}_max_length_cycles.csv')
     return df
 
 def make_df_max_match_length_single(n, k, results, save = False, path = 'data/simulations/max_length_matches_w_eadam/'):
